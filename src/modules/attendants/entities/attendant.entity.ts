@@ -19,12 +19,12 @@ export class Attendant {
   @Column()
   name: string;
 
-  @ManyToOne(() => Station, (station) => station.attendants)
-  station: Station;
-
   @OneToMany(() => Transaction, (transaction) => transaction.attendant)
   transactions: Transaction[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  @ManyToOne(() => Station, (station) => station.attendants, { nullable: true })
+  station: Station | null;
 }

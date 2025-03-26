@@ -15,6 +15,7 @@ import * as Joi from 'joi';
         NODE_ENV: Joi.string()
           .valid('development', 'production', 'test')
           .default('development'),
+        isGlobal: true,
         DB_HOST: Joi.string().required(),
         DB_PORT: Joi.number().default(5432),
         DB_USERNAME: Joi.string().required(),

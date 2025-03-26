@@ -66,7 +66,6 @@ export class StationsService {
   }
 
   async removeAttendant(stationId: number, attendantId: number): Promise<void> {
-    const station = await this.findOne(stationId);
     const attendant = await this.attendantsRepository.findOne({
       where: { id: attendantId, station: { id: stationId } },
     });
@@ -77,7 +76,8 @@ export class StationsService {
       );
     }
 
-    attendant.station = null;
+    attendant.station = null; // Remove the station association
+
     await this.attendantsRepository.save(attendant);
   }
 }
