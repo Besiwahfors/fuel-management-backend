@@ -8,6 +8,7 @@ import { Station } from '../stations/entities/station.entity';
 import { Attendant } from '../attendants/entities/attendant.entity';
 import { PaymentMethod } from './entities/transaction.entity';
 import { DateRangeDto } from './dto/date-range.dto';
+import { FuelType } from './entities/transaction.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -79,6 +80,19 @@ export class TransactionsService {
       (sum, t) => sum + Number(t.amount),
       0,
     );
+
+    // Add fuel type breakdown
+    const fuelTypeBreakdown = transactions.reduce(
+      (acc, t) => {
+        const key = t.fuelType;
+        acc[key] = acc[key] || { totalAmount: 0, totalQuantity: 0 };
+        acc[key].totalAmount += Number(t.amount);
+        acc[key].totalQuantity += Number(t.quantity);
+        return acc;
+      },
+      {} as Record<FuelType, { totalAmount: number; totalQuantity: number }>,
+    );
+
     const paymentMethodBreakdown = transactions.reduce(
       (acc, t) => {
         acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + Number(t.amount);
@@ -89,11 +103,26 @@ export class TransactionsService {
 
     return {
       totalSales,
+      fuelTypeBreakdown,
       paymentMethodBreakdown,
       transactionCount: transactions.length,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     };
+  }
+  // Add new method for fuel type specific reports
+  async getFuelTypeReport(dateRange: DateRangeDto) {
+    return this.transactionsRepository
+      .createQueryBuilder('transaction')
+      .select('transaction.fuelType', 'fuelType')
+      .addSelect('SUM(transaction.amount)', 'totalAmount')
+      .addSelect('SUM(transaction.quantity)', 'totalQuantity')
+      .where('transaction.createdAt BETWEEN :start AND :end', {
+        start: dateRange.startDate,
+        end: dateRange.endDate,
+      })
+      .groupBy('transaction.fuelType')
+      .getRawMany();
   }
 
   findByStation(stationId: number) {

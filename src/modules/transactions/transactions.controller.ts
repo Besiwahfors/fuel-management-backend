@@ -79,6 +79,14 @@ export class TransactionsController {
     return this.transactionsService.findOne(transactionId);
   }
 
+  @Get('reports/fuel-type')
+  getFuelTypeReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
+    if (!req.user || req.user['role'] !== 'admin') {
+      throw new ForbiddenException('Unauthorized to view fuel reports');
+    }
+    return this.transactionsService.getFuelTypeReport(dateRange);
+  }
+
   @Get('reports')
   generateReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
     if (!req.user || req.user['role'] !== 'admin') {

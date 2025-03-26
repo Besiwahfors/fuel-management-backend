@@ -8,6 +8,14 @@ export enum PaymentMethod {
   MOMO = 'momo',
 }
 
+// Add FuelType enum
+export enum FuelType {
+  PETROL = 'petrol',
+  DIESEL = 'diesel',
+  PREMIUM = 'premium',
+  ELECTRIC = 'electric',
+}
+
 @Entity()
 export class Transaction {
   @PrimaryGeneratedColumn()
@@ -16,8 +24,20 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
+  // Add quantity field for liters/gallons
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  quantity: number;
+
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
+
+  // Add fuel type column
+  @Column({
+    type: 'enum',
+    enum: FuelType,
+    nullable: false,
+  })
+  fuelType: FuelType;
 
   @ManyToOne(() => User, (user) => user.transactions)
   user: User;
