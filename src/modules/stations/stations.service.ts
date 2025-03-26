@@ -1,0 +1,83 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Station } from './entities/station.entity';
+import { CreateStationDto } from './dto/create-station.dto';
+import { UpdateStationDto } from './dto/update-station.dto';
+import { Attendant } from '../../modules/attendants/entities/attendant.entity';
+
+@Injectable()
+export class StationsService {
+  constructor(
+    @InjectRepository(Station)
+    private stationsRepository: Repository<Station>,
+    @InjectRepository(Attendant)
+    private attendantsRepository: Repository<Attendant>,
+  ) {}
+
+  async create(createStationDto: CreateStationDto): Promise<Station> {
+    const station = this.stationsRepository.create(createStationDto);
+    return this.stationsRepository.save(station);
+  }
+
+  findAll(): Promise<Station[]> {
+    return this.stationsRepository.find({ relations: ['attendants'] });
+  }
+
+  async findOne(id: number): Promise<Station> {
+    const station = await this.stationsRepository.findOne({
+      where: { id },
+      relations: ['attendants'],
+    });
+
+    if (!station) {
+      throw new NotFoundException(`Station with ID ${id} not found`);
+    }
+    return station;
+  }
+
+  async update(
+    id: number,
+    updateStationDto: UpdateStationDto,
+  ): Promise<Station> {
+    const station = await this.findOne(id);
+    return this.stationsRepository.save({ ...station, ...updateStationDto });
+  }
+
+  async remove(id: number): Promise<void> {
+    await this.stationsRepository.delete(id);
+  }
+
+  async addAttendant(
+    stationId: number,
+    attendantId: number,
+  ): Promise<Attendant> {
+    const station = await this.findOne(stationId);
+    const attendant = await this.attendantsRepository.findOneBy({
+      id: attendantId,
+    });
+
+    if (!attendant) {
+      throw new NotFoundException(`Attendant with ID ${attendantId} not found`);
+    }
+
+    attendant.station = station;
+    return this.attendantsRepository.save(attendant);
+  }
+
+  async removeAttendant(stationId: number, attendantId: number): Promise<void> {
+    const station = await this.findOne(stationId);
+    const attendant = await this.attendantsRepository.findOne({
+      where: { id: attendantId, station: { id: stationId } },
+    });
+
+    if (!attendant) {
+      throw new NotFoundException(
+        `Attendant with ID ${attendantId} not found in station ${stationId}`,
+      );
+    }
+
+    attendant.station = null;
+    await this.attendantsRepository.save(attendant);
+  }
+}
