@@ -5,6 +5,13 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Enable CORS
+  app.enableCors({
+    origin: 'http://localhost:5174', // Allow requests from your React frontend
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, //  cookies
+  });
+
   // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('Fuel Management API')
@@ -19,4 +26,4 @@ async function bootstrap() {
   await app.listen(process.env.PORT || 3000);
 }
 
-void bootstrap(); // Add this to actually call the function
+void bootstrap();
