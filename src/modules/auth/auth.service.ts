@@ -46,7 +46,7 @@ export class AuthService {
       expiresIn,
     });
 
-    return new AuthResponseDto(token, expiresIn);
+    return new AuthResponseDto(token, expiresIn + 's');
   }
 
   async attendantLogin(

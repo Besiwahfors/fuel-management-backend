@@ -8,7 +8,7 @@ import { Station } from '../stations/entities/station.entity';
 import { Attendant } from '../attendants/entities/attendant.entity';
 import { PaymentMethod } from './entities/transaction.entity';
 import { DateRangeDto } from './dto/date-range.dto';
-import { FuelType } from './entities/transaction.entity';
+import { FUEL_TYPES } from './fuel-types.constants';
 
 @Injectable()
 export class TransactionsService {
@@ -24,35 +24,30 @@ export class TransactionsService {
   ) {}
 
   async create(
-    createTransactionDto: CreateTransactionDto,
+    createDto: CreateTransactionDto,
     userId: number,
   ): Promise<Transaction> {
-    const user = await this.usersRepository.findOneBy({ id: userId });
-    const station = await this.stationsRepository.findOneBy({
-      id: createTransactionDto.stationId,
-    });
-    const attendant = await this.attendantsRepository.findOneBy({
-      id: createTransactionDto.attendantId,
-    });
+    const [user, station, attendant] = await Promise.all([
+      this.usersRepository.findOneBy({ id: userId }),
+      this.stationsRepository.findOneBy({ id: createDto.stationId }),
+      this.attendantsRepository.findOneBy({ id: createDto.attendantId }),
+    ]);
 
-    if (!user) throw new NotFoundException('User not found');
-    if (!station) throw new NotFoundException('Station not found');
-    if (!attendant) throw new NotFoundException('Attendant not found');
+    if (!user || !station || !attendant) {
+      throw new NotFoundException('One or more entities not found');
+    }
 
-    const transaction = this.transactionsRepository.create({
-      ...createTransactionDto,
+    return this.transactionsRepository.save({
+      ...createDto,
       user,
       station,
       attendant,
     });
-
-    return this.transactionsRepository.save(transaction);
   }
 
   findAll(paymentMethod?: PaymentMethod) {
-    const where = paymentMethod ? { paymentMethod } : {};
     return this.transactionsRepository.find({
-      where,
+      where: paymentMethod ? { paymentMethod } : {},
       relations: ['user', 'station', 'attendant'],
     });
   }
@@ -65,64 +60,86 @@ export class TransactionsService {
   }
 
   async generateReport(dateRange: DateRangeDto) {
-    const where: any = {};
+    const transactions = await this.getTransactionsInRange(dateRange);
 
-    if (dateRange.startDate && dateRange.endDate) {
-      where.createdAt = Between(
-        new Date(dateRange.startDate),
-        new Date(dateRange.endDate),
-      );
-    }
-
-    const transactions = await this.transactionsRepository.find({ where });
-
-    const totalSales = transactions.reduce(
-      (sum, t) => sum + Number(t.amount),
-      0,
+    const initialFuelState = FUEL_TYPES.reduce(
+      (acc, type) => ({
+        ...acc,
+        [type]: { totalAmount: 0, totalQuantity: 0 },
+      }),
+      {},
     );
 
-    // Add fuel type breakdown
-    const fuelTypeBreakdown = transactions.reduce(
-      (acc, t) => {
-        const key = t.fuelType;
-        acc[key] = acc[key] || { totalAmount: 0, totalQuantity: 0 };
-        acc[key].totalAmount += Number(t.amount);
-        acc[key].totalQuantity += Number(t.quantity);
-        return acc;
-      },
-      {} as Record<FuelType, { totalAmount: number; totalQuantity: number }>,
-    );
-
-    const paymentMethodBreakdown = transactions.reduce(
-      (acc, t) => {
-        acc[t.paymentMethod] = (acc[t.paymentMethod] || 0) + Number(t.amount);
-        return acc;
-      },
-      {} as Record<PaymentMethod, number>,
+    const breakdowns = transactions.reduce(
+      ({ fuel, payment }, t) => ({
+        fuel: {
+          ...fuel,
+          [t.fuelType]: {
+            totalAmount: fuel[t.fuelType].totalAmount + Number(t.amount),
+            totalQuantity: fuel[t.fuelType].totalQuantity + Number(t.quantity),
+          },
+        },
+        payment: {
+          ...payment,
+          [t.paymentMethod]: (payment[t.paymentMethod] || 0) + Number(t.amount),
+        },
+      }),
+      { fuel: initialFuelState, payment: {} },
     );
 
     return {
-      totalSales,
-      fuelTypeBreakdown,
-      paymentMethodBreakdown,
+      totalSales: transactions.reduce((sum, t) => sum + Number(t.amount), 0),
+      fuelTypeBreakdown: breakdowns.fuel,
+      paymentMethodBreakdown: breakdowns.payment,
       transactionCount: transactions.length,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+      ...dateRange,
     };
   }
-  // Add new method for fuel type specific reports
+
   async getFuelTypeReport(dateRange: DateRangeDto) {
-    return this.transactionsRepository
+    const rawData = await this.transactionsRepository
       .createQueryBuilder('transaction')
       .select('transaction.fuelType', 'fuelType')
       .addSelect('SUM(transaction.amount)', 'totalAmount')
       .addSelect('SUM(transaction.quantity)', 'totalQuantity')
-      .where('transaction.createdAt BETWEEN :start AND :end', {
-        start: dateRange.startDate,
-        end: dateRange.endDate,
-      })
+      .where('transaction.createdAt BETWEEN :start AND :end', dateRange)
       .groupBy('transaction.fuelType')
       .getRawMany();
+
+    return FUEL_TYPES.map((type) => {
+      const found = rawData.find((d) => d.fuelType === type);
+      return found
+        ? {
+            fuelType: type,
+            totalAmount: Number(found.totalAmount),
+            totalQuantity: Number(found.totalQuantity),
+          }
+        : {
+            fuelType: type,
+            totalAmount: 0,
+            totalQuantity: 0,
+          };
+    });
+  }
+
+  private async getTransactionsInRange(dateRange: DateRangeDto) {
+    const startDate = dateRange.startDate
+      ? new Date(dateRange.startDate)
+      : undefined;
+    const endDate = dateRange.endDate ? new Date(dateRange.endDate) : undefined;
+
+    const whereClause: any = {};
+    if (startDate && endDate) {
+      whereClause.createdAt = Between(startDate, endDate);
+    } else if (startDate) {
+      whereClause.createdAt = startDate; // Or handle as needed
+    } else if (endDate) {
+      whereClause.createdAt = endDate; // Or handle as needed
+    }
+
+    return this.transactionsRepository.find({
+      where: whereClause,
+    });
   }
 
   findByStation(stationId: number) {

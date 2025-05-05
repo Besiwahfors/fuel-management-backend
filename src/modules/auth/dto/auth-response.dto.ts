@@ -1,11 +1,27 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 export class AuthResponseDto {
+  @ApiProperty({
+    description: 'JWT access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
   access_token: string;
-  expires_in: number; // Change to number
+
+  @ApiProperty({
+    description: 'Token expiration time',
+    example: '1h',
+  })
+  expires_in: string;
+
+  @ApiProperty({
+    description: 'Token type',
+    example: 'Bearer',
+  })
   token_type: string;
 
-  constructor(token: string, expiresIn: number) {
-    this.access_token = token;
-    this.expires_in = expiresIn;
+  constructor(access_token: string, expires_in: string) {
+    this.access_token = access_token;
+    this.expires_in = expires_in;
     this.token_type = 'Bearer';
   }
 }

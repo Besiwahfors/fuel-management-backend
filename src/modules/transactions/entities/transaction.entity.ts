@@ -2,6 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
 import { Attendant } from '../../attendants/entities/attendant.entity';
+import { FUEL_TYPES } from '../fuel-types.constants';
 
 export enum PaymentMethod {
   CASH = 'cash',
@@ -9,12 +10,14 @@ export enum PaymentMethod {
 }
 
 // Add FuelType enum
-export enum FuelType {
-  PETROL = 'petrol',
-  DIESEL = 'diesel',
-  PREMIUM = 'premium',
-  ELECTRIC = 'electric',
-}
+export type FuelType = (typeof FUEL_TYPES)[number];
+export const FuelType = {
+  PETROL: 'PETROL',
+  DIESEL: 'DIESEL',
+  PREMIUM: 'PREMIUM',
+
+  ELECTRIC: 'ELECTRIC',
+} as const;
 
 @Entity()
 export class Transaction {
@@ -34,7 +37,7 @@ export class Transaction {
   // Add fuel type column
   @Column({
     type: 'enum',
-    enum: FuelType,
+    enum: FUEL_TYPES,
     nullable: false,
   })
   fuelType: FuelType;

@@ -17,6 +17,8 @@ import { DateRangeDto } from './dto/date-range.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { PaymentMethod } from './entities/transaction.entity';
+import { FUEL_TYPES } from './fuel-types.constants';
+import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 
 @Controller('transactions')
 @UseGuards(AuthGuard('jwt'))
@@ -28,19 +30,8 @@ export class TransactionsController {
     @Body() createTransactionDto: CreateTransactionDto,
     @Req() req: Request,
   ) {
-    if (!req.user) {
-      throw new UnauthorizedException('User not authenticated');
-    }
-
-    // Convert and validate user ID
-    const userIdRaw = req.user['userId'];
-    const userId =
-      typeof userIdRaw === 'number' ? userIdRaw : Number(userIdRaw);
-    if (isNaN(userId)) {
-      throw new UnauthorizedException('Invalid user ID');
-    }
-
-    return this.transactionsService.create(createTransactionDto, userId);
+    const user = this.validateUser(req);
+    return this.transactionsService.create(createTransactionDto, user.userId);
   }
 
   @Get()
@@ -48,31 +39,21 @@ export class TransactionsController {
     @Req() req: Request,
     @Query('paymentMethod') paymentMethod?: PaymentMethod,
   ) {
-    if (!req.user || req.user['role'] !== 'admin') {
-      throw new ForbiddenException('Unauthorized to view all transactions');
-    }
+    this.validateAdmin(req);
     return this.transactionsService.findAll(paymentMethod);
+  }
+
+  @Get('fuel-types')
+  getFuelTypes() {
+    return { types: FUEL_TYPES };
   }
 
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: Request) {
-    const transactionId = parseInt(id, 10);
-    if (isNaN(transactionId)) {
-      throw new BadRequestException('Invalid transaction ID');
-    }
+    const user = this.validateUser(req);
+    const transactionId = this.parseId(id, 'Transaction');
 
-    // Safely extract and convert user ID
-    const userIdRaw = req.user?.['userId'];
-    const userId =
-      typeof userIdRaw === 'number' ? userIdRaw : Number(userIdRaw);
-    if (isNaN(userId)) {
-      throw new UnauthorizedException('Invalid user ID');
-    }
-
-    if (
-      !req.user ||
-      (req.user['role'] !== 'admin' && userId !== transactionId)
-    ) {
+    if (user.role !== 'admin' && user.userId !== transactionId) {
       throw new ForbiddenException('Unauthorized to view this transaction');
     }
 
@@ -80,18 +61,23 @@ export class TransactionsController {
   }
 
   @Get('reports/fuel-type')
-  getFuelTypeReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
-    if (!req.user || req.user['role'] !== 'admin') {
-      throw new ForbiddenException('Unauthorized to view fuel reports');
-    }
-    return this.transactionsService.getFuelTypeReport(dateRange);
+  async getFuelTypeReport(
+    @Query() dateRange: DateRangeDto,
+    @Req() req: Request,
+  ) {
+    this.validateAdmin(req);
+    const rawData = await this.transactionsService.getFuelTypeReport(dateRange);
+
+    return rawData.map((item) => ({
+      fuelType: item.fuelType.charAt(0) + item.fuelType.slice(1).toLowerCase(),
+      totalAmount: Number(item.totalAmount),
+      totalQuantity: Number(item.totalQuantity),
+    }));
   }
 
   @Get('reports')
   generateReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
-    if (!req.user || req.user['role'] !== 'admin') {
-      throw new ForbiddenException('Unauthorized to generate reports');
-    }
+    this.validateAdmin(req);
     return this.transactionsService.generateReport(dateRange);
   }
 
@@ -100,14 +86,10 @@ export class TransactionsController {
     @Param('stationId') stationId: string,
     @Req() req: Request,
   ) {
-    const stationIdNumber = parseInt(stationId, 10);
-    if (isNaN(stationIdNumber)) {
-      throw new BadRequestException('Invalid station ID');
-    }
-    if (!req.user || req.user['role'] !== 'admin') {
-      throw new ForbiddenException('Unauthorized to view station transactions');
-    }
-    return this.transactionsService.findByStation(stationIdNumber);
+    this.validateAdmin(req);
+    return this.transactionsService.findByStation(
+      this.parseId(stationId, 'Station'),
+    );
   }
 
   @Get('attendants/:attendantId')
@@ -115,19 +97,38 @@ export class TransactionsController {
     @Param('attendantId') attendantId: string,
     @Req() req: Request,
   ) {
-    const attendantIdNumber = parseInt(attendantId, 10);
-    if (isNaN(attendantIdNumber)) {
-      throw new BadRequestException('Invalid attendant ID');
-    }
-    const userId = Number(req.user?.['userId']);
-    if (
-      !req.user ||
-      (req.user['role'] !== 'admin' && userId !== attendantIdNumber)
-    ) {
+    const user = this.validateUser(req);
+    const id = this.parseId(attendantId, 'Attendant');
+
+    if (user.role !== 'admin' && user.userId !== id) {
       throw new ForbiddenException(
         'Unauthorized to view attendant transactions',
       );
     }
-    return this.transactionsService.findByAttendant(attendantIdNumber);
+
+    return this.transactionsService.findByAttendant(id);
+  }
+
+  private validateAdmin(req: Request) {
+    const user = req.user as JwtPayload;
+    if (!user || user.role !== 'admin') {
+      throw new ForbiddenException('Unauthorized access');
+    }
+  }
+
+  private validateUser(req: Request): JwtPayload {
+    const user = req.user as JwtPayload;
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('Invalid authentication');
+    }
+    return user;
+  }
+
+  private parseId(id: string, entity: string): number {
+    const numId = parseInt(id, 10);
+    if (isNaN(numId)) {
+      throw new BadRequestException(`Invalid ${entity} ID`);
+    }
+    return numId;
   }
 }
