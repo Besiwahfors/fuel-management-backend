@@ -7,6 +7,8 @@ import { StationsModule } from './modules/stations/stations.module';
 import { AttendantsModule } from './modules/attendants/attendants.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import * as Joi from 'joi';
+// import * as crypto from 'crypto';
+// console.log('Crypto module loaded in AppModule:', !!crypto);
 
 @Module({
   imports: [

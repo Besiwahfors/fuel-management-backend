@@ -1,7 +1,7 @@
-# Stage 1: Build
-FROM node:18-slim AS builder
+# Stage 1: Build environment
+FROM node:18-bookworm-slim AS builder
 
-# Install essential tools
+# Install build essentials
 RUN apt-get update && \
     apt-get install -y python3 make g++ && \
     rm -rf /var/lib/apt/lists/*
@@ -13,16 +13,19 @@ RUN npm ci --include=dev
 COPY . .
 RUN npm run build
 
-# Stage 2: Production
-FROM node:18-slim
+# Rebuild native modules specifically
+RUN npm rebuild bcrypt --update-binary
+
+# Stage 2: Production image
+FROM node:18-bookworm-slim
 
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY package*.json ./
 
-# Install production dependencies
-RUN npm ci --omit=dev
+# Production environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
 
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
