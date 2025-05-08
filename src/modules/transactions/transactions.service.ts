@@ -39,6 +39,7 @@ export class TransactionsService {
 
     return this.transactionsRepository.save({
       ...createDto,
+      fuelType: createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number], // Convert to lowercase here and cast to FuelType
       user,
       station,
       attendant,
@@ -76,7 +77,7 @@ export class TransactionsService {
           ...fuel,
           [t.fuelType]: {
             totalAmount: fuel[t.fuelType].totalAmount + Number(t.amount),
-            totalQuantity: fuel[t.fuelType].totalQuantity + Number(t.quantity),
+            totalQuantity: fuel[t.fuelType].totalQuantity + Number(t.liters),
           },
         },
         payment: {

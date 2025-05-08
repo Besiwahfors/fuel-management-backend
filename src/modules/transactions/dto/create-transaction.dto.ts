@@ -8,7 +8,7 @@ export class CreateTransactionDto {
 
   @IsNumber()
   @IsPositive()
-  quantity: number;
+  liters: number;
 
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;

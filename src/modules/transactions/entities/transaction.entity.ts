@@ -9,14 +9,12 @@ export enum PaymentMethod {
   MOMO = 'momo',
 }
 
-// Add FuelType enum
 export type FuelType = (typeof FUEL_TYPES)[number];
 export const FuelType = {
-  PETROL: 'PETROL',
-  DIESEL: 'DIESEL',
-  PREMIUM: 'PREMIUM',
-
-  ELECTRIC: 'ELECTRIC',
+  PETROL: 'petrol',
+  DIESEL: 'diesel',
+  PREMIUM: 'premium',
+  ELECTRIC: 'electric',
 } as const;
 
 @Entity()
@@ -27,14 +25,13 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
-  // Add quantity field for liters/gallons
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  quantity: number;
+  
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'quantity' }) // Keep database column name for migration
+  liters: number;
 
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
-  // Add fuel type column
   @Column({
     type: 'enum',
     enum: FUEL_TYPES,
