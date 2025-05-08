@@ -18,10 +18,13 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typeorm": "ts-node ./node_modules/typeorm/cli.js",
-    "migration:generate": "npm run typeorm -- migration:generate -d src/config/typeorm.config.ts",
-    "migration:run": "npm run typeorm -- migration:run -d src/config/typeorm.config.ts",
-    "schema:drop": "npm run typeorm -- schema:drop -d src/config/typeorm.config.ts"
+
+   "typeorm": "ts-node ./node_modules/typeorm/cli.js",
+  "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate --dataSource=./src/config/typeorm.config.ts src/migrations CreateAttendantTable",
+  "migration:run": "ts-node ./node_modules/typeorm/cli.js migration:run --dataSource=./src/config/typeorm.config.ts",
+  "schema:drop": "npm run typeorm schema:drop --dataSource=./src/config/typeorm.config.ts"
+
+
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -48,7 +51,6 @@
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.20"
-    
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

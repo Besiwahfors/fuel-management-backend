@@ -7,8 +7,6 @@ import { StationsModule } from './modules/stations/stations.module';
 import { AttendantsModule } from './modules/attendants/attendants.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import * as Joi from 'joi';
-// import * as crypto from 'crypto';
-// console.log('Crypto module loaded in AppModule:', !!crypto);
 
 @Module({
   imports: [
@@ -30,23 +28,29 @@ import * as Joi from 'joi';
         abortEarly: true,
       },
     }),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
-        host: config.get('DB_HOST'),
-        port: config.get('DB_PORT'),
-        username: config.get('DB_USERNAME'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_DATABASE'),
+        host: config.get<string>('DB_HOST'),
+        port: config.get<number>('DB_PORT'),
+        username: config.get<string>('DB_USERNAME'),
+        password: config.get<string>('DB_PASSWORD'),
+        database: config.get<string>('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: config.get('NODE_ENV') === 'development', //remove for prod
+        synchronize: config.get('NODE_ENV') === 'development',
         logging: config.get('NODE_ENV') === 'development',
         migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
         cli: {
           migrationsDir: 'src/migrations',
         },
-        ssl: config.get('DB_SSL', false), //true for prod
+        ssl:
+          config.get<string>('SSL_MODE') === 'require'
+            ? {
+                rejectUnauthorized: false, // Consider setting to true in production with CA
+              }
+            : false,
       }),
       inject: [ConfigService],
     }),
