@@ -1,5 +1,13 @@
-import { IsEnum, IsNumber, IsPositive, IsNotEmpty } from 'class-validator';
+// src\modules\transactions\dto\create-transaction.dto.ts
+import {
+  IsEnum,
+  IsNumber,
+  IsPositive,
+  IsNotEmpty,
+  IsOptional,
+} from 'class-validator';
 import { PaymentMethod, FuelType } from '../entities/transaction.entity';
+import { TransactionStatus } from '../entities/transaction.entity'; // Import TransactionStatus
 
 export class CreateTransactionDto {
   @IsNumber()
@@ -23,4 +31,8 @@ export class CreateTransactionDto {
   @IsNotEmpty()
   @IsNumber()
   attendantId: number;
+
+  @IsOptional()
+  @IsEnum(TransactionStatus)
+  status?: TransactionStatus;
 }

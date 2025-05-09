@@ -16,7 +16,10 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { DateRangeDto } from './dto/date-range.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
-import { PaymentMethod } from './entities/transaction.entity';
+import {
+  PaymentMethod,
+  TransactionStatus,
+} from './entities/transaction.entity'; // Import TransactionStatus
 import { FUEL_TYPES } from './fuel-types.constants';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 
@@ -38,9 +41,10 @@ export class TransactionsController {
   findAll(
     @Req() req: Request,
     @Query('paymentMethod') paymentMethod?: PaymentMethod,
+    @Query('status') status?: TransactionStatus, // Add status as a query parameter
   ) {
     this.validateAdmin(req);
-    return this.transactionsService.findAll(paymentMethod);
+    return this.transactionsService.findAll(paymentMethod, status);
   }
 
   @Get('fuel-types')
@@ -85,10 +89,12 @@ export class TransactionsController {
   getTransactionsByStation(
     @Param('stationId') stationId: string,
     @Req() req: Request,
+    @Query('status') status?: TransactionStatus, // Add status as a query parameter
   ) {
     this.validateAdmin(req);
     return this.transactionsService.findByStation(
       this.parseId(stationId, 'Station'),
+      status,
     );
   }
 
@@ -96,6 +102,7 @@ export class TransactionsController {
   getTransactionsByAttendant(
     @Param('attendantId') attendantId: string,
     @Req() req: Request,
+    @Query('status') status?: TransactionStatus, // Add status as a query parameter
   ) {
     const user = this.validateUser(req);
     const id = this.parseId(attendantId, 'Attendant');
@@ -106,7 +113,7 @@ export class TransactionsController {
       );
     }
 
-    return this.transactionsService.findByAttendant(id);
+    return this.transactionsService.findByAttendant(id, status);
   }
 
   private validateAdmin(req: Request) {

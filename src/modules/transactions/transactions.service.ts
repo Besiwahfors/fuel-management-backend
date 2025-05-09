@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Transaction } from './entities/transaction.entity';
+import { Transaction, TransactionStatus } from './entities/transaction.entity'; // Import TransactionStatus
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { User } from '../users/entities/user.entity';
 import { Station } from '../stations/entities/station.entity';
@@ -39,16 +39,24 @@ export class TransactionsService {
 
     return this.transactionsRepository.save({
       ...createDto,
-      fuelType: createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number], // Convert to lowercase here and cast to FuelType
+      fuelType: createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number],
       user,
       station,
       attendant,
+      status: createDto.status || TransactionStatus.COMPLETED, // Set default status if not provided
     });
   }
 
-  findAll(paymentMethod?: PaymentMethod) {
+  findAll(paymentMethod?: PaymentMethod, status?: TransactionStatus) {
+    const where: any = {};
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+    if (status) {
+      where.status = status;
+    }
     return this.transactionsRepository.find({
-      where: paymentMethod ? { paymentMethod } : {},
+      where,
       relations: ['user', 'station', 'attendant'],
     });
   }
@@ -133,9 +141,9 @@ export class TransactionsService {
     if (startDate && endDate) {
       whereClause.createdAt = Between(startDate, endDate);
     } else if (startDate) {
-      whereClause.createdAt = startDate; // Or handle as needed
+      whereClause.createdAt = startDate;
     } else if (endDate) {
-      whereClause.createdAt = endDate; // Or handle as needed
+      whereClause.createdAt = endDate;
     }
 
     return this.transactionsRepository.find({
@@ -143,16 +151,24 @@ export class TransactionsService {
     });
   }
 
-  findByStation(stationId: number) {
+  findByStation(stationId: number, status?: TransactionStatus) {
+    const where: any = { station: { id: stationId } };
+    if (status) {
+      where.status = status;
+    }
     return this.transactionsRepository.find({
-      where: { station: { id: stationId } },
+      where,
       relations: ['user', 'station', 'attendant'],
     });
   }
 
-  findByAttendant(attendantId: number) {
+  findByAttendant(attendantId: number, status?: TransactionStatus) {
+    const where: any = { attendant: { id: attendantId } };
+    if (status) {
+      where.status = status;
+    }
     return this.transactionsRepository.find({
-      where: { attendant: { id: attendantId } },
+      where,
       relations: ['user', 'station', 'attendant'],
     });
   }

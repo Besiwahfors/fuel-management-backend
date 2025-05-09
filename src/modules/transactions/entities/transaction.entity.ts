@@ -1,3 +1,4 @@
+// src\modules\transactions\entities\transaction.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
@@ -17,6 +18,11 @@ export const FuelType = {
   ELECTRIC: 'electric',
 } as const;
 
+export enum TransactionStatus {
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
 @Entity()
 export class Transaction {
   @PrimaryGeneratedColumn()
@@ -25,7 +31,7 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'quantity' }) // Keep database column name for migration
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'quantity' })
   liters: number;
 
   @Column({ type: 'enum', enum: PaymentMethod })
@@ -49,4 +55,11 @@ export class Transaction {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    default: TransactionStatus.COMPLETED,
+  })
+  status: TransactionStatus;
 }
