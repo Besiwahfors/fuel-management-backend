@@ -27,24 +27,44 @@ export class TransactionsService {
     createDto: CreateTransactionDto,
     userId: number,
   ): Promise<Transaction> {
-    const [user, station, attendant] = await Promise.all([
-      this.usersRepository.findOneBy({ id: userId }),
-      this.stationsRepository.findOneBy({ id: createDto.stationId }),
-      this.attendantsRepository.findOneBy({ id: createDto.attendantId }),
-    ]);
+    try {
+      const [user, station, attendant] = await Promise.all([
+        this.usersRepository.findOneBy({ id: userId }),
+        this.stationsRepository.findOneBy({ id: createDto.stationId }),
+        this.attendantsRepository.findOneBy({ id: createDto.attendantId }),
+      ]);
 
-    if (!user || !station || !attendant) {
-      throw new NotFoundException('One or more entities not found');
+      if (!user || !station || !attendant) {
+        throw new NotFoundException('One or more entities not found');
+      }
+
+      const transaction = this.transactionsRepository.create({
+        ...createDto,
+        fuelType:
+          createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number],
+        user,
+        station,
+        attendant,
+        status: createDto.status || TransactionStatus.COMPLETED,
+      });
+
+      return await this.transactionsRepository.save(transaction);
+    } catch (error) {
+      // Create a failed transaction record if something goes wrong
+      const failedTransaction = this.transactionsRepository.create({
+        ...createDto,
+        fuelType:
+          createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number],
+        user: { id: userId } as User,
+        station: { id: createDto.stationId } as Station,
+        attendant: { id: createDto.attendantId } as Attendant,
+        status: TransactionStatus.FAILED,
+        errorMessage: error.message,
+      });
+
+      await this.transactionsRepository.save(failedTransaction);
+      throw error; // Re-throw the error after saving failed transaction
     }
-
-    return this.transactionsRepository.save({
-      ...createDto,
-      fuelType: createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number],
-      user,
-      station,
-      attendant,
-      status: createDto.status || TransactionStatus.COMPLETED, // Set default status if not provided
-    });
   }
 
   findAll(paymentMethod?: PaymentMethod, status?: TransactionStatus) {

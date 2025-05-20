@@ -1,4 +1,3 @@
-// src\modules\transactions\entities\transaction.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
@@ -62,4 +61,7 @@ export class Transaction {
     default: TransactionStatus.COMPLETED,
   })
   status: TransactionStatus;
+
+  @Column({ type: 'text', nullable: true })
+  errorMessage?: string;
 }

@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -29,12 +30,22 @@ export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
   @Post()
-  create(
+  async create(
     @Body() createTransactionDto: CreateTransactionDto,
     @Req() req: Request,
   ) {
     const user = this.validateUser(req);
-    return this.transactionsService.create(createTransactionDto, user.userId);
+    try {
+      return await this.transactionsService.create(
+        createTransactionDto,
+        user.userId,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 
   @Get()
