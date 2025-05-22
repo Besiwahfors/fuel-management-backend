@@ -1,7 +1,7 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
+  ForbiddenException, // Keep ForbiddenException if you use it for restricted access
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,6 +9,7 @@ import { Attendant } from './entities/attendant.entity';
 import { CreateAttendantDto } from './dto/create-attendant.dto';
 import { UpdateAttendantDto } from './dto/update-attendant.dto';
 import { Station } from '../../modules/stations/entities/station.entity';
+import { Transaction } from '../../modules/transactions/entities/transaction.entity'; // Import Transaction entity
 
 @Injectable()
 export class AttendantsService {
@@ -17,12 +18,14 @@ export class AttendantsService {
     private attendantsRepository: Repository<Attendant>,
     @InjectRepository(Station)
     private stationsRepository: Repository<Station>,
+    @InjectRepository(Transaction) // Inject Transaction repository for direct queries if needed, though relations handle loading
+    private transactionsRepository: Repository<Transaction>,
   ) {}
 
   async findOne(id: number, checkStation?: number): Promise<Attendant> {
     const attendant = await this.attendantsRepository.findOne({
       where: { id },
-      relations: ['station', 'transactions'],
+      relations: ['station', 'transactions'], // CRITICAL: Eager-load transactions for the details page
     });
 
     if (!attendant) {
@@ -55,8 +58,9 @@ export class AttendantsService {
   }
 
   findAll(): Promise<Attendant[]> {
+    // Eager-load station for the list page to display station name
     return this.attendantsRepository.find({
-      relations: ['station', 'transactions'],
+      relations: ['station'],
     });
   }
 
@@ -64,28 +68,39 @@ export class AttendantsService {
     id: number,
     updateAttendantDto: UpdateAttendantDto,
   ): Promise<Attendant> {
-    const attendant = await this.findOne(id);
+    const attendant = await this.findOne(id); // Use findOne to ensure the attendant exists and relations are loaded if needed
 
-    if (updateAttendantDto.stationId) {
-      const station = await this.stationsRepository.findOneBy({
-        id: updateAttendantDto.stationId,
-      });
-      if (!station) {
-        throw new NotFoundException(
-          `Station with ID ${updateAttendantDto.stationId} not found`,
-        );
+    // Update simple properties
+    Object.assign(attendant, updateAttendantDto);
+
+    // Handle station association/disassociation
+    if (updateAttendantDto.stationId !== undefined) {
+      // Check for undefined, not just truthy
+      if (updateAttendantDto.stationId === null) {
+        attendant.station = null; // Disassociate
+        attendant.stationId = null;
+      } else {
+        const station = await this.stationsRepository.findOneBy({
+          id: updateAttendantDto.stationId,
+        });
+        if (!station) {
+          throw new NotFoundException(
+            `Station with ID ${updateAttendantDto.stationId} not found`,
+          );
+        }
+        attendant.station = station;
+        attendant.stationId = station.id;
       }
-      attendant.station = station;
     }
 
-    return this.attendantsRepository.save({
-      ...attendant,
-      ...updateAttendantDto,
-    });
+    return this.attendantsRepository.save(attendant);
   }
 
   async remove(id: number): Promise<void> {
-    await this.attendantsRepository.delete(id);
+    const result = await this.attendantsRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Attendant with ID ${id} not found`);
+    }
   }
 
   async findByCode(code: string): Promise<Attendant | null> {

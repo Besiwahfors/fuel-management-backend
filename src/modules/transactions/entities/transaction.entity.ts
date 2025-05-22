@@ -1,28 +1,32 @@
+// src/modules/transactions/entities/transaction.entity.ts
+
 import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
   ManyToOne,
   JoinColumn,
-} from 'typeorm'; // <--- Import JoinColumn
+  CreateDateColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
 import { Attendant } from '../../attendants/entities/attendant.entity';
-import { FUEL_TYPES } from '../fuel-types.constants';
 
+// Define PaymentMethod as a traditional enum (already correct)
 export enum PaymentMethod {
   CASH = 'cash',
   MOMO = 'momo',
 }
 
-export type FuelType = (typeof FUEL_TYPES)[number];
-export const FuelType = {
-  PETROL: 'petrol',
-  DIESEL: 'diesel',
-  PREMIUM: 'premium',
-  ELECTRIC: 'electric',
-} as const;
+// **CRITICAL CHANGE: Define FuelType as a traditional TypeScript enum**
+export enum FuelType {
+  PETROL = 'petrol',
+  DIESEL = 'diesel',
+  PREMIUM = 'premium',
+  ELECTRIC = 'electric',
+}
 
+// Define TransactionStatus as a traditional enum (already correct)
 export enum TransactionStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
@@ -42,34 +46,44 @@ export class Transaction {
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
+  // Use the new FuelType enum
   @Column({
     type: 'enum',
-    enum: FUEL_TYPES,
+    enum: FuelType, // Now refers to the enum value
     nullable: false,
   })
-  fuelType: FuelType;
+  fuelType: FuelType; // This is still the type for the property
 
   @ManyToOne(() => User, (user) => user.transactions)
+  @JoinColumn({ name: 'userId' })
   user: User;
 
-  // --- REVISED: Add explicit JoinColumn and foreign key column ---
-  @ManyToOne(() => Station, (station) => station.transactions)
-  @JoinColumn({ name: 'stationId' }) // Tells TypeORM that 'stationId' is the foreign key column
+  @Column({ nullable: true })
+  userId: number;
+
+  @ManyToOne(() => Station, (station) => station.transactions, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'stationId' })
   station: Station;
 
-  @Column({ nullable: true }) // Define the foreign key column itself, allow nullable if a transaction can exist without a station
+  @Column({ nullable: true })
   stationId: number;
-  // --- END REVISED ---
 
-  @ManyToOne(() => Attendant)
-  @JoinColumn({ name: 'attendantId' }) // Recommended to add for attendant too
+  @ManyToOne(() => Attendant, (attendant) => attendant.transactions, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'attendantId' })
   attendant: Attendant;
 
-  @Column({ nullable: true }) // Define the foreign key for attendant
+  @Column({ nullable: true })
   attendantId: number;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  transactionDate: Date;
 
   @Column({
     type: 'enum',

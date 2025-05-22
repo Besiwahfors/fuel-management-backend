@@ -1,3 +1,4 @@
+// src/modules/attendants/attendants.controller.ts
 import {
   Controller,
   Get,
@@ -9,6 +10,7 @@ import {
   UseGuards,
   Req,
   NotFoundException,
+  Patch, // Import Patch decorator for partial updates
 } from '@nestjs/common';
 import { AttendantsService } from './attendants.service';
 import { CreateAttendantDto } from './dto/create-attendant.dto';
@@ -34,16 +36,21 @@ export class AttendantsController {
 
     const payload = req.user as JwtPayload;
     try {
+      // Ensure findOne here also loads relations if needed for this 'me' endpoint
       const attendant = await this.attendantsService.findOne(payload.userId);
       return {
         id: attendant.id,
         code: attendant.code,
         name: attendant.name,
-        station: attendant.station,
+        station: attendant.station, // Station object
         createdAt: attendant.createdAt,
+        // You might want to return transactions here too if the 'me' endpoint needs them
+        // transactions: attendant.transactions,
       };
-    } catch {
-      throw new NotFoundException('Attendant not found');
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      // Be more specific with error handling if possible
+      throw new NotFoundException('Attendant not found or access denied');
     }
   }
 
@@ -57,17 +64,18 @@ export class AttendantsController {
     const payload = req.user as JwtPayload;
     const numericId = parseInt(id, 10);
 
+    // Security check: Attendant can only view their own details
     if (
       (payload.role as UserRole) === UserRole.ATTENDANT &&
-      payload.userId !== numericId
+      payload.userId !== numericId // Assuming payload.userId is the attendant's ID
     ) {
-      throw new NotFoundException('Attendant not found');
+      throw new NotFoundException('Attendant not found or unauthorized access'); // Use 403 Forbidden for clearer error
     }
 
+    // The service's findOne already loads 'station' and 'transactions'
     return this.attendantsService.findOne(numericId);
   }
 
-  // Keep the rest of the endpoints unchanged
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   create(@Body() createAttendantDto: CreateAttendantDto) {
@@ -77,15 +85,26 @@ export class AttendantsController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   findAll() {
+    // The service's findAll already loads 'station'
     return this.attendantsService.findAll();
   }
 
-  @Put(':id')
+  @Put(':id') // For full replacement
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   update(
     @Param('id') id: string,
-    @Body() updateAttendantDto: UpdateAttendantDto,
+    @Body() updateAttendantDto: UpdateAttendantDto, // Use UpdateAttendantDto for full updates
   ) {
+    return this.attendantsService.update(+id, updateAttendantDto);
+  }
+
+  @Patch(':id') // Added PATCH for partial updates, uses the same service method
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  patch(
+    @Param('id') id: string,
+    @Body() updateAttendantDto: UpdateAttendantDto, // UpdateAttendantDto works for partial updates too
+  ) {
+    // The service update method handles partial updates correctly
     return this.attendantsService.update(+id, updateAttendantDto);
   }
 
