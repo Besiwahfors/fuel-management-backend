@@ -1,7 +1,8 @@
+// src/modules/attendants/attendants.service.ts
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException, // Keep ForbiddenException if you use it for restricted access
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,7 +10,7 @@ import { Attendant } from './entities/attendant.entity';
 import { CreateAttendantDto } from './dto/create-attendant.dto';
 import { UpdateAttendantDto } from './dto/update-attendant.dto';
 import { Station } from '../../modules/stations/entities/station.entity';
-import { Transaction } from '../../modules/transactions/entities/transaction.entity'; // Import Transaction entity
+import { Transaction } from '../../modules/transactions/entities/transaction.entity';
 
 @Injectable()
 export class AttendantsService {
@@ -18,14 +19,19 @@ export class AttendantsService {
     private attendantsRepository: Repository<Attendant>,
     @InjectRepository(Station)
     private stationsRepository: Repository<Station>,
-    @InjectRepository(Transaction) // Inject Transaction repository for direct queries if needed, though relations handle loading
+    @InjectRepository(Transaction)
     private transactionsRepository: Repository<Transaction>,
   ) {}
 
   async findOne(id: number, checkStation?: number): Promise<Attendant> {
     const attendant = await this.attendantsRepository.findOne({
       where: { id },
-      relations: ['station', 'transactions'], // CRITICAL: Eager-load transactions for the details page
+      relations: [
+        'station', // Load the attendant's assigned station
+        'transactions', // Load all transactions for this attendant
+        'transactions.station', // <--- CRITICAL: Load the station for EACH transaction
+        'transactions.user', // Optional: Load the user for each transaction if needed
+      ],
     });
 
     if (!attendant) {
@@ -58,9 +64,8 @@ export class AttendantsService {
   }
 
   findAll(): Promise<Attendant[]> {
-    // Eager-load station for the list page to display station name
     return this.attendantsRepository.find({
-      relations: ['station'],
+      relations: ['station'], // Only need attendant's station for the list view
     });
   }
 
@@ -68,16 +73,13 @@ export class AttendantsService {
     id: number,
     updateAttendantDto: UpdateAttendantDto,
   ): Promise<Attendant> {
-    const attendant = await this.findOne(id); // Use findOne to ensure the attendant exists and relations are loaded if needed
+    const attendant = await this.findOne(id);
 
-    // Update simple properties
     Object.assign(attendant, updateAttendantDto);
 
-    // Handle station association/disassociation
     if (updateAttendantDto.stationId !== undefined) {
-      // Check for undefined, not just truthy
       if (updateAttendantDto.stationId === null) {
-        attendant.station = null; // Disassociate
+        attendant.station = null;
         attendant.stationId = null;
       } else {
         const station = await this.stationsRepository.findOneBy({
