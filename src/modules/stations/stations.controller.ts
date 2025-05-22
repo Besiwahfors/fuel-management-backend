@@ -1,3 +1,4 @@
+// src/stations/stations.controller.ts
 import {
   Controller,
   Get,
@@ -7,10 +8,11 @@ import {
   Put,
   Delete,
   UseGuards,
+  Patch, // Import Patch decorator
 } from '@nestjs/common';
 import { StationsService } from './stations.service';
 import { CreateStationDto } from './dto/create-station.dto';
-import { UpdateStationDto } from './dto/update-station.dto';
+import { UpdateStationDto } from './dto/update-station.dto'; // Ensure this DTO exists and uses PartialType
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -39,9 +41,25 @@ export class StationsController {
     return this.stationsService.findOne(+id);
   }
 
+  // Current PUT endpoint (replaces the entire resource)
   @Put(':id')
   @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() updateStationDto: UpdateStationDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateStationDto: UpdateStationDto, // Use the DTO for full replacement
+  ) {
+    return this.stationsService.update(+id, updateStationDto);
+  }
+
+  // NEW PATCH endpoint (for partial updates)
+  @Patch(':id') // Use @Patch decorator
+  @Roles(UserRole.ADMIN) // Define roles as needed
+  patch(
+    @Param('id') id: string,
+    @Body() updateStationDto: UpdateStationDto, // This DTO should be a PartialType of CreateStationDto
+  ) {
+    // The service method for PATCH will be the same as update in your current service implementation
+    // as it already uses `save({ ...station, ...updateStationDto })` which handles partial updates.
     return this.stationsService.update(+id, updateStationDto);
   }
 

@@ -1,9 +1,10 @@
+// src/stations/stations.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Station } from './entities/station.entity';
 import { CreateStationDto } from './dto/create-station.dto';
-import { UpdateStationDto } from './dto/update-station.dto';
+import { UpdateStationDto } from './dto/update-station.dto'; // Make sure this is PartialType
 import { Attendant } from '../../modules/attendants/entities/attendant.entity';
 
 @Injectable()
@@ -21,13 +22,15 @@ export class StationsService {
   }
 
   findAll(): Promise<Station[]> {
-    return this.stationsRepository.find({ relations: ['attendants'] });
+    return this.stationsRepository.find({
+      relations: ['attendants', 'transactions'],
+    });
   }
 
   async findOne(id: number): Promise<Station> {
     const station = await this.stationsRepository.findOne({
       where: { id },
-      relations: ['attendants'],
+      relations: ['attendants', 'transactions'],
     });
 
     if (!station) {
@@ -36,11 +39,14 @@ export class StationsService {
     return station;
   }
 
+  // This method works for both PUT (full DTO) and PATCH (partial DTO)
   async update(
     id: number,
-    updateStationDto: UpdateStationDto,
+    updateStationDto: UpdateStationDto, // This DTO is now a PartialType
   ): Promise<Station> {
-    const station = await this.findOne(id);
+    const station = await this.findOne(id); // Find the existing station
+    // This line merges existing data with new data from updateStationDto.
+    // If updateStationDto only contains 'name', only 'name' will be updated.
     return this.stationsRepository.save({ ...station, ...updateStationDto });
   }
 

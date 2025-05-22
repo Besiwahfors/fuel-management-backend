@@ -20,7 +20,7 @@ import { Request } from 'express';
 import {
   PaymentMethod,
   TransactionStatus,
-} from './entities/transaction.entity'; // Import TransactionStatus
+} from './entities/transaction.entity';
 import { FUEL_TYPES } from './fuel-types.constants';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 
@@ -48,34 +48,14 @@ export class TransactionsController {
     }
   }
 
-  @Get()
-  findAll(
-    @Req() req: Request,
-    @Query('paymentMethod') paymentMethod?: PaymentMethod,
-    @Query('status') status?: TransactionStatus, // Add status as a query parameter
-  ) {
+  // === REPORTS ROUTES - MUST COME BEFORE :id ===
+  @Get('reports') // Specific route
+  generateReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
     this.validateAdmin(req);
-    return this.transactionsService.findAll(paymentMethod, status);
+    return this.transactionsService.generateReport(dateRange);
   }
 
-  @Get('fuel-types')
-  getFuelTypes() {
-    return { types: FUEL_TYPES };
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string, @Req() req: Request) {
-    const user = this.validateUser(req);
-    const transactionId = this.parseId(id, 'Transaction');
-
-    if (user.role !== 'admin' && user.userId !== transactionId) {
-      throw new ForbiddenException('Unauthorized to view this transaction');
-    }
-
-    return this.transactionsService.findOne(transactionId);
-  }
-
-  @Get('reports/fuel-type')
+  @Get('reports/fuel-type') // More specific route
   async getFuelTypeReport(
     @Query() dateRange: DateRangeDto,
     @Req() req: Request,
@@ -90,17 +70,12 @@ export class TransactionsController {
     }));
   }
 
-  @Get('reports')
-  generateReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
-    this.validateAdmin(req);
-    return this.transactionsService.generateReport(dateRange);
-  }
-
+  // === STATION & ATTENDANT SPECIFIC ROUTES - MUST COME BEFORE :id ===
   @Get('stations/:stationId')
   getTransactionsByStation(
     @Param('stationId') stationId: string,
     @Req() req: Request,
-    @Query('status') status?: TransactionStatus, // Add status as a query parameter
+    @Query('status') status?: TransactionStatus,
   ) {
     this.validateAdmin(req);
     return this.transactionsService.findByStation(
@@ -113,7 +88,7 @@ export class TransactionsController {
   getTransactionsByAttendant(
     @Param('attendantId') attendantId: string,
     @Req() req: Request,
-    @Query('status') status?: TransactionStatus, // Add status as a query parameter
+    @Query('status') status?: TransactionStatus,
   ) {
     const user = this.validateUser(req);
     const id = this.parseId(attendantId, 'Attendant');
@@ -127,6 +102,35 @@ export class TransactionsController {
     return this.transactionsService.findByAttendant(id, status);
   }
 
+  // === GENERAL ROUTES ===
+  @Get('fuel-types') // Specific route, could be above general ':id' or here
+  getFuelTypes() {
+    return { types: FUEL_TYPES };
+  }
+
+  @Get() // List all transactions (e.g., /transactions)
+  findAll(
+    @Req() req: Request,
+    @Query('paymentMethod') paymentMethod?: PaymentMethod,
+    @Query('status') status?: TransactionStatus,
+  ) {
+    this.validateAdmin(req);
+    return this.transactionsService.findAll(paymentMethod, status);
+  }
+
+  @Get(':id') // Wildcard ID route - MUST COME LAST AMONG GET ROUTES
+  findOne(@Param('id') id: string, @Req() req: Request) {
+    const user = this.validateUser(req);
+    const transactionId = this.parseId(id, 'Transaction');
+
+    if (user.role !== 'admin' && user.userId !== transactionId) {
+      throw new ForbiddenException('Unauthorized to view this transaction');
+    }
+
+    return this.transactionsService.findOne(transactionId);
+  }
+
+  // === PRIVATE HELPER METHODS ===
   private validateAdmin(req: Request) {
     const user = req.user as JwtPayload;
     if (!user || user.role !== 'admin') {

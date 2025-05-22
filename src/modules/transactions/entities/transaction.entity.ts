@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm'; // <--- Import JoinColumn
 import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
 import { Attendant } from '../../attendants/entities/attendant.entity';
@@ -46,11 +52,21 @@ export class Transaction {
   @ManyToOne(() => User, (user) => user.transactions)
   user: User;
 
-  @ManyToOne(() => Station)
+  // --- REVISED: Add explicit JoinColumn and foreign key column ---
+  @ManyToOne(() => Station, (station) => station.transactions)
+  @JoinColumn({ name: 'stationId' }) // Tells TypeORM that 'stationId' is the foreign key column
   station: Station;
 
+  @Column({ nullable: true }) // Define the foreign key column itself, allow nullable if a transaction can exist without a station
+  stationId: number;
+  // --- END REVISED ---
+
   @ManyToOne(() => Attendant)
+  @JoinColumn({ name: 'attendantId' }) // Recommended to add for attendant too
   attendant: Attendant;
+
+  @Column({ nullable: true }) // Define the foreign key for attendant
+  attendantId: number;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

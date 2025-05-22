@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { Transaction, TransactionStatus } from './entities/transaction.entity'; // Import TransactionStatus
+import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { User } from '../users/entities/user.entity';
 import { Station } from '../stations/entities/station.entity';
@@ -49,21 +49,26 @@ export class TransactionsService {
       });
 
       return await this.transactionsRepository.save(transaction);
-    } catch (error) {
+    } catch (error: any) {
       // Create a failed transaction record if something goes wrong
+      // Explicitly define properties for TypeORM's create method
       const failedTransaction = this.transactionsRepository.create({
-        ...createDto,
+        amount: createDto.amount,
+        liters: createDto.liters,
+        paymentMethod: createDto.paymentMethod,
         fuelType:
           createDto.fuelType.toLowerCase() as (typeof FUEL_TYPES)[number],
-        user: { id: userId } as User,
-        station: { id: createDto.stationId } as Station,
-        attendant: { id: createDto.attendantId } as Attendant,
+        user: { id: userId }, // Provide partial user object with ID
+        station: { id: createDto.stationId }, // Provide partial station object with ID
+        attendant: { id: createDto.attendantId }, // Provide partial attendant object with ID
         status: TransactionStatus.FAILED,
-        errorMessage: error.message,
+        errorMessage:
+          error.message ||
+          'An unknown error occurred during transaction creation.',
       });
 
       await this.transactionsRepository.save(failedTransaction);
-      throw error; // Re-throw the error after saving failed transaction
+      throw error;
     }
   }
 
@@ -116,11 +121,31 @@ export class TransactionsService {
       { fuel: initialFuelState, payment: {} },
     );
 
+    const recentTransactions = transactions
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 10);
+
     return {
       totalSales: transactions.reduce((sum, t) => sum + Number(t.amount), 0),
-      fuelTypeBreakdown: breakdowns.fuel,
-      paymentMethodBreakdown: breakdowns.payment,
+      fuelTypeBreakdown: Object.keys(breakdowns.fuel).map((fuelType) => ({
+        fuelType: fuelType,
+        amount: breakdowns.fuel[fuelType].totalAmount,
+        quantity: breakdowns.fuel[fuelType].totalQuantity,
+      })),
+      paymentMethodBreakdown: Object.keys(breakdowns.payment).map((method) => ({
+        method: method,
+        count: breakdowns.payment[method],
+      })),
       transactionCount: transactions.length,
+      recentTransactions: recentTransactions.map((t) => ({
+        id: t.id.toString(),
+        amount: Number(t.amount),
+        date: t.createdAt.toISOString().split('T')[0],
+        method: t.paymentMethod,
+      })),
       ...dateRange,
     };
   }
@@ -131,12 +156,17 @@ export class TransactionsService {
       .select('transaction.fuelType', 'fuelType')
       .addSelect('SUM(transaction.amount)', 'totalAmount')
       .addSelect('SUM(transaction.quantity)', 'totalQuantity')
-      .where('transaction.createdAt BETWEEN :start AND :end', dateRange)
+      .where('transaction.createdAt BETWEEN :start AND :end', {
+        start: dateRange.startDate
+          ? new Date(dateRange.startDate)
+          : new Date(0),
+        end: dateRange.endDate ? new Date(dateRange.endDate) : new Date(),
+      })
       .groupBy('transaction.fuelType')
       .getRawMany();
 
     return FUEL_TYPES.map((type) => {
-      const found = rawData.find((d) => d.fuelType === type);
+      const found = rawData.find((d: any) => d.fuelType === type);
       return found
         ? {
             fuelType: type,
@@ -152,22 +182,37 @@ export class TransactionsService {
   }
 
   private async getTransactionsInRange(dateRange: DateRangeDto) {
-    const startDate = dateRange.startDate
-      ? new Date(dateRange.startDate)
-      : undefined;
-    const endDate = dateRange.endDate ? new Date(dateRange.endDate) : undefined;
+    const where: any = {};
 
-    const whereClause: any = {};
-    if (startDate && endDate) {
-      whereClause.createdAt = Between(startDate, endDate);
-    } else if (startDate) {
-      whereClause.createdAt = startDate;
-    } else if (endDate) {
-      whereClause.createdAt = endDate;
+    if (dateRange.startDate || dateRange.endDate) {
+      const startDate = dateRange.startDate
+        ? new Date(dateRange.startDate)
+        : undefined;
+      const endDate = dateRange.endDate
+        ? new Date(dateRange.endDate)
+        : undefined;
+
+      if (startDate) {
+        startDate.setHours(0, 0, 0, 0);
+      }
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      if (startDate && endDate) {
+        where.createdAt = Between(startDate, endDate);
+      } else if (startDate) {
+        where.createdAt = MoreThanOrEqual(startDate);
+      } else if (endDate) {
+        where.createdAt = LessThanOrEqual(endDate);
+      }
     }
 
     return this.transactionsRepository.find({
-      where: whereClause,
+      where: where,
+      order: {
+        createdAt: 'DESC',
+      },
     });
   }
 
