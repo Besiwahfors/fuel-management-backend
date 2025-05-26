@@ -1,6 +1,7 @@
 export enum PaymentMethod {
   CASH = 'cash',
   MOMO = 'momo',
+  COUPON = 'coupon',
 }
 
 export interface SalesReport {

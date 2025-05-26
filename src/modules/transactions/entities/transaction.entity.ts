@@ -1,5 +1,3 @@
-// src/modules/transactions/entities/transaction.entity.ts
-
 import {
   Entity,
   Column,
@@ -16,6 +14,7 @@ import { Attendant } from '../../attendants/entities/attendant.entity';
 export enum PaymentMethod {
   CASH = 'cash',
   MOMO = 'momo',
+  COUPON = 'coupon', // <--- ADD THIS LINE
 }
 
 // **CRITICAL CHANGE: Define FuelType as a traditional TypeScript enum**
