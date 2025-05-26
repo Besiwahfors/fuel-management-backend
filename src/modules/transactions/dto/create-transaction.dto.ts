@@ -1,4 +1,3 @@
-// src/modules/transactions/dto/create-transaction.dto.ts
 import {
   IsEnum,
   IsNumber,
@@ -7,7 +6,6 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-// Now FuelType is correctly imported as an enum (both type and value)
 import {
   PaymentMethod,
   FuelType,
@@ -26,7 +24,7 @@ export class CreateTransactionDto {
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
 
-  @IsEnum(FuelType) // <--- THIS WILL NOW WORK CORRECTLY
+  @IsEnum(FuelType)
   fuelType: FuelType;
 
   @IsNotEmpty()
@@ -44,4 +42,11 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsString()
   errorMessage?: string;
+
+  // --- ADD THIS NEW FIELD ---
+  @IsOptional()
+  @IsString()
+  // You might want more specific validation here, e.g., @Length(5, 20)
+  couponCode?: string;
+  // --------------------------
 }

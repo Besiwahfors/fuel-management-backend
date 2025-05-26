@@ -10,14 +10,12 @@ import { User } from '../../users/entities/user.entity';
 import { Station } from '../../stations/entities/station.entity';
 import { Attendant } from '../../attendants/entities/attendant.entity';
 
-// Define PaymentMethod as a traditional enum (already correct)
 export enum PaymentMethod {
   CASH = 'cash',
   MOMO = 'momo',
-  COUPON = 'coupon', // <--- ADD THIS LINE
+  COUPON = 'coupon',
 }
 
-// **CRITICAL CHANGE: Define FuelType as a traditional TypeScript enum**
 export enum FuelType {
   PETROL = 'petrol',
   DIESEL = 'diesel',
@@ -25,7 +23,6 @@ export enum FuelType {
   ELECTRIC = 'electric',
 }
 
-// Define TransactionStatus as a traditional enum (already correct)
 export enum TransactionStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
@@ -45,13 +42,17 @@ export class Transaction {
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
-  // Use the new FuelType enum
+  // --- ADD THIS NEW COLUMN ---
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  couponCode: string;
+  // ---------------------------
+
   @Column({
     type: 'enum',
-    enum: FuelType, // Now refers to the enum value
+    enum: FuelType,
     nullable: false,
   })
-  fuelType: FuelType; // This is still the type for the property
+  fuelType: FuelType;
 
   @ManyToOne(() => User, (user) => user.transactions)
   @JoinColumn({ name: 'userId' })
