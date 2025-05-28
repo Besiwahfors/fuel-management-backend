@@ -12,7 +12,7 @@ import { AttendantsModule } from '../attendants/attendants.module';
   imports: [
     UsersModule,
     ConfigModule,
-    AttendantsModule,
+    AttendantsModule, // AttendantsModule provides AttendantsService
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -25,7 +25,7 @@ import { AttendantsModule } from '../attendants/attendants.module';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy], // JwtStrategy now receives AttendantsService via AttendantsModule
   controllers: [AuthController],
   exports: [AuthService],
 })

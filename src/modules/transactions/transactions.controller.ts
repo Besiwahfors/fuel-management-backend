@@ -22,7 +22,8 @@ import {
   TransactionStatus,
 } from './entities/transaction.entity';
 import { FUEL_TYPES } from './fuel-types.constants';
-import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
+import { JwtPayload } from '../../common/interfaces/jwt-payload.interface'; // Ensure this is the updated interface
+import { UserRole } from '../users/interfaces/user.interface'; // To use UserRole enum
 
 @Controller('transactions')
 @UseGuards(AuthGuard('jwt'))
@@ -34,11 +35,13 @@ export class TransactionsController {
     @Body() createTransactionDto: CreateTransactionDto,
     @Req() req: Request,
   ) {
-    const user = this.validateUser(req);
+    // Only Attendants can create transactions
+    const authenticatedEntity = this.validateAuthenticatedAttendant(req);
     try {
+      // Pass the attendant's ID as the creator of the transaction
       return await this.transactionsService.create(
         createTransactionDto,
-        user.userId,
+        authenticatedEntity.id,
       );
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -51,7 +54,7 @@ export class TransactionsController {
   // === REPORTS ROUTES - MUST COME BEFORE :id ===
   @Get('reports') // Specific route
   generateReport(@Query() dateRange: DateRangeDto, @Req() req: Request) {
-    this.validateAdmin(req);
+    this.validateAdminOrManager(req); // Only admins/managers should generate reports
     return this.transactionsService.generateReport(dateRange);
   }
 
@@ -60,7 +63,7 @@ export class TransactionsController {
     @Query() dateRange: DateRangeDto,
     @Req() req: Request,
   ) {
-    this.validateAdmin(req);
+    this.validateAdminOrManager(req); // Only admins/managers should generate reports
     const rawData = await this.transactionsService.getFuelTypeReport(dateRange);
 
     return rawData.map((item) => ({
@@ -77,7 +80,7 @@ export class TransactionsController {
     @Req() req: Request,
     @Query('status') status?: TransactionStatus,
   ) {
-    this.validateAdmin(req);
+    this.validateAdminOrManager(req); // Only admins/managers can view by station
     return this.transactionsService.findByStation(
       this.parseId(stationId, 'Station'),
       status,
@@ -90,16 +93,25 @@ export class TransactionsController {
     @Req() req: Request,
     @Query('status') status?: TransactionStatus,
   ) {
-    const user = this.validateUser(req);
-    const id = this.parseId(attendantId, 'Attendant');
+    const authenticatedEntity = this.validateAuthenticatedEntity(req);
+    const requestedAttendantId = this.parseId(attendantId, 'Attendant');
 
-    if (user.role !== 'admin' && user.userId !== id) {
+    // Security check: If not admin/manager, ensure the ID matches the authenticated attendant's ID
+    if (
+      // FIX: Added type casting for comparison
+      (authenticatedEntity.role as UserRole) !== UserRole.ADMIN &&
+      (authenticatedEntity.role as UserRole) !== UserRole.MANAGER &&
+      authenticatedEntity.id !== requestedAttendantId
+    ) {
       throw new ForbiddenException(
-        'Unauthorized to view attendant transactions',
+        'Unauthorized to view other attendant transactions',
       );
     }
 
-    return this.transactionsService.findByAttendant(id, status);
+    return this.transactionsService.findByAttendant(
+      requestedAttendantId,
+      status,
+    );
   }
 
   // === GENERAL ROUTES ===
@@ -114,36 +126,81 @@ export class TransactionsController {
     @Query('paymentMethod') paymentMethod?: PaymentMethod,
     @Query('status') status?: TransactionStatus,
   ) {
-    this.validateAdmin(req);
+    this.validateAdminOrManager(req); // Only admins/managers can see all transactions
     return this.transactionsService.findAll(paymentMethod, status);
   }
 
   @Get(':id') // Wildcard ID route - MUST COME LAST AMONG GET ROUTES
-  findOne(@Param('id') id: string, @Req() req: Request) {
-    const user = this.validateUser(req);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const authenticatedEntity = this.validateAuthenticatedEntity(req);
     const transactionId = this.parseId(id, 'Transaction');
 
-    if (user.role !== 'admin' && user.userId !== transactionId) {
-      throw new ForbiddenException('Unauthorized to view this transaction');
+    // Fetch the transaction first to get its associated attendant ID
+    const transaction = await this.transactionsService.findOne(transactionId);
+    if (!transaction) {
+      throw new NotFoundException(
+        `Transaction with ID ${transactionId} not found`,
+      );
     }
 
-    return this.transactionsService.findOne(transactionId);
+    // Security check:
+    // 1. Admins/Managers can view any transaction.
+    // 2. Attendants can only view transactions they created.
+    if (
+      // FIX: Added type casting for comparison
+      (authenticatedEntity.role as UserRole) !== UserRole.ADMIN &&
+      (authenticatedEntity.role as UserRole) !== UserRole.MANAGER
+    ) {
+      // If the authenticated entity is an Attendant, check if the transaction belongs to them
+      if (
+        // FIX: Added type casting for comparison
+        (authenticatedEntity.role as UserRole) === UserRole.ATTENDANT &&
+        transaction.attendant.id !== authenticatedEntity.id
+      ) {
+        throw new ForbiddenException('Unauthorized to view this transaction');
+      } else {
+        // If it's some other non-admin/non-manager role not covered, deny
+        throw new ForbiddenException('Unauthorized access');
+      }
+    }
+
+    return transaction;
   }
 
   // === PRIVATE HELPER METHODS ===
-  private validateAdmin(req: Request) {
-    const user = req.user as JwtPayload;
-    if (!user || user.role !== 'admin') {
+
+  // Validates if the authenticated entity is an Admin or Manager
+  private validateAdminOrManager(req: Request) {
+    const entity = req.user as JwtPayload;
+    if (
+      !entity ||
+      // FIX: Added type casting for comparison
+      ((entity.role as UserRole) !== UserRole.ADMIN &&
+        (entity.role as UserRole) !== UserRole.MANAGER)
+    ) {
       throw new ForbiddenException('Unauthorized access');
     }
   }
 
-  private validateUser(req: Request): JwtPayload {
-    const user = req.user as JwtPayload;
-    if (!user || !user.userId) {
-      throw new UnauthorizedException('Invalid authentication');
+  // Validates if the authenticated entity is an Attendant
+  private validateAuthenticatedAttendant(req: Request): JwtPayload {
+    const entity = req.user as JwtPayload;
+    if (!entity || (entity.role as UserRole) !== UserRole.ATTENDANT) {
+      // FIX: Added type casting for comparison
+      throw new UnauthorizedException(
+        'Only attendants are authorized to perform this action.',
+      );
     }
-    return user;
+    return entity;
+  }
+
+  // General validation for any authenticated entity (admin, manager, attendant)
+  private validateAuthenticatedEntity(req: Request): JwtPayload {
+    const entity = req.user as JwtPayload;
+    if (!entity || !entity.id || !entity.role) {
+      throw new UnauthorizedException('Invalid authentication credentials.');
+    }
+    return entity;
   }
 
   private parseId(id: string, entity: string): number {
