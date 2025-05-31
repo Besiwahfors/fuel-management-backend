@@ -12,20 +12,19 @@ import { AttendantsModule } from '../attendants/attendants.module';
   imports: [
     UsersModule,
     ConfigModule,
-    AttendantsModule, // AttendantsModule provides AttendantsService
+    AttendantsModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN'),
-        },
+        // No default expiresIn here, as tokens will have varied expiries.
+        // It will be set in signOptions directly in AuthService.
       }),
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy], // JwtStrategy now receives AttendantsService via AttendantsModule
+  providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })
